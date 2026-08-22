@@ -149,7 +149,7 @@ class _CallHomePageState extends State<CallHomePage>{
           onTap:()=>edit(c),trailing:Wrap(children:[
             IconButton(tooltip:'WhatsApp',icon:const Icon(Icons.message,color:Colors.green),onPressed:()=>whatsapp(c)),
             IconButton(tooltip:'PDF',icon:const Icon(Icons.picture_as_pdf,color:Colors.red),onPressed:()=>makePdf(c))
-          ]))));}),
+          ])));}),
       floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.person_add),label:const Text('Client Add')));
   }
 }
