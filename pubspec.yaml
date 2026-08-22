@@ -1,5 +1,5 @@
 name: saini_stock_app
-description: Saini Info Solutions Stock Management App
+description: Saini Info Solutions Stock and Call App
 publish_to: "none"
 
 version: 1.0.0+1
@@ -10,11 +10,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
   cupertino_icons: ^1.0.8
   pdf: ^3.11.1
   printing: ^5.13.4
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.2
+  path_provider: ^2.1.4
+  share_plus: ^10.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
