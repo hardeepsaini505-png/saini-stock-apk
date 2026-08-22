@@ -1779,7 +1779,10 @@ class _BillingPageState extends State<BillingPage> {
   }
 
   double get taxable => (subtotal - discount).clamp(0, double.infinity);
-  double get gst => items.fold(0, (sum, item) => item.gstAmount) * (subtotal == 0 ? 0 : taxable / subtotal);
+  double get gst => items.fold<double>(
+      0.0,
+      (sum, item) => sum + item.gstAmount,
+    ) * (subtotal == 0 ? 0.0 : taxable / subtotal);
   double get cgst => widget.gstSettings.interState ? 0 : gst / 2;
   double get sgst => widget.gstSettings.interState ? 0 : gst / 2;
   double get igst => widget.gstSettings.interState ? gst : 0;
