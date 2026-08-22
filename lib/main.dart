@@ -13,7 +13,7 @@ void main()=>runApp(const CallAPK());
 class CallAPK extends StatelessWidget{
   const CallAPK({super.key});
   Widget build(BuildContext c)=>MaterialApp(
-    debugShowCheckedModeBanner:false,title:'CallAPK',
+    debugShowCheckedModeBanner:false,title:'Saini Service Manager',
     theme:ThemeData(useMaterial3:true,colorSchemeSeed:Colors.blue),
     home:const CallHomePage());
 }
@@ -92,7 +92,8 @@ class _CallHomePageState extends State<CallHomePage>{
         pw.Text('Thank you - Saini Info Solutions')
       ]))));
     final dir=await getTemporaryDirectory();
-    final f=File('${dir.path}/Call_${DateTime.now().millisecondsSinceEpoch}.pdf');
+    final safeName=c.name.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'),'_');
+    final f=File('${dir.path}/Saini_Service_${safeName}_${DateTime.now().millisecondsSinceEpoch}.pdf');
     await f.writeAsBytes(await pdf.save());
     await Share.shareXFiles([XFile(f.path)],text:'Service Call Report - ${c.name}');
   }
@@ -135,9 +136,31 @@ class _CallHomePageState extends State<CallHomePage>{
     padding:const EdgeInsets.only(bottom:8),child:TextField(controller:c,keyboardType:t,
     decoration:InputDecoration(labelText:label,border:const OutlineInputBorder())));
 
+  Future<void> deleteClient(Client c) async{
+    final ok=await showDialog<bool>(
+      context:context,
+      builder:(d)=>AlertDialog(
+        title:const Text('Delete Client?'),
+        content:Text('Kya aap ${c.name} ki client entry delete karna chahte hain?'),
+        actions:[
+          TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('Cancel')),
+          FilledButton(
+            style:FilledButton.styleFrom(backgroundColor:Colors.red),
+            onPressed:()=>Navigator.pop(d,true),
+            child:const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if(ok==true){
+      setState(()=>clients.remove(c));
+      await saveData();
+    }
+  }
+
   Widget build(BuildContext context){
     final list=clients.where((c)=>filter=='All'||c.status==filter).toList();
-    return Scaffold(appBar:AppBar(title:const Text('CallAPK'),actions:[PopupMenuButton<String>(
+    return Scaffold(appBar:AppBar(title:const Text('Saini Service Manager'),actions:[PopupMenuButton<String>(
       onSelected:(v)=>setState(()=>filter=v),itemBuilder:(_)=>const[
         PopupMenuItem(value:'All',child:Text('All Calls')),PopupMenuItem(value:'Open',child:Text('Open')),
         PopupMenuItem(value:'Pending',child:Text('Pending')),PopupMenuItem(value:'Closed',child:Text('Closed'))])]),
@@ -148,7 +171,8 @@ class _CallHomePageState extends State<CallHomePage>{
           subtitle:Text('${c.mobile}\n${c.work}\n${c.place}\nStatus: ${c.status}'),isThreeLine:true,
           onTap:()=>edit(c),trailing:Wrap(children:[
             IconButton(tooltip:'WhatsApp',icon:const Icon(Icons.message,color:Colors.green),onPressed:()=>whatsapp(c)),
-            IconButton(tooltip:'PDF',icon:const Icon(Icons.picture_as_pdf,color:Colors.red),onPressed:()=>makePdf(c))
+            IconButton(tooltip:'PDF',icon:const Icon(Icons.picture_as_pdf,color:Colors.red),onPressed:()=>makePdf(c)),
+            IconButton(tooltip:'Delete Client',icon:const Icon(Icons.delete,color:Colors.red),onPressed:()=>deleteClient(c))
           ])));}),
       floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.person_add),label:const Text('Client Add')));
   }
