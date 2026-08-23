@@ -287,7 +287,7 @@ class _CallHomePageState extends State<CallHomePage>{
             pw.Text('Call Close: ${c.closeDate==null?'Not closed':'${dt(c.closeDate!)} ${tm(c.closeDate!)}'}',style:base),
             pw.Text('Thank you - $firmName',style:bold),
           ])
-        ]));
+        ])));
 
     final dir=await getApplicationDocumentsDirectory();
     final safeName=c.jobNo.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'),'_');
@@ -631,23 +631,37 @@ Future<void> firmSettings() async{
       decoration:InputDecoration(labelText:label,border:const OutlineInputBorder())));
 
   Widget watermark(){
-    if(!watermarkEnabled)return const SizedBox.shrink();
+    // Hidden control area remains active even when watermark is OFF,
+    // so the owner can turn it ON again without showing a normal setting.
     return Positioned(
-      left:-23,
-      top:MediaQuery.of(context).size.height*0.38,
+      left:0,
+      top:MediaQuery.of(context).size.height*0.32,
       child:GestureDetector(
+        behavior:HitTestBehavior.translucent,
         onTap:watermarkControl,
-        child:Transform.rotate(
-          angle:-1.5708,
-          child:Container(
-            padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),
-            decoration:BoxDecoration(
-              color:Colors.black.withOpacity(.10),
-              borderRadius:BorderRadius.circular(6)),
-            child:Text('Saini Info Solutions',
-              style:TextStyle(fontSize:11,fontWeight:FontWeight.bold,
-                color:Colors.black.withOpacity(.38))),
-          ))));
+        child:SizedBox(
+          width:55,
+          height:210,
+          child:watermarkEnabled
+            ? Align(
+                alignment:Alignment.centerLeft,
+                child:Transform.rotate(
+                  angle:-1.5708,
+                  child:Container(
+                    padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),
+                    decoration:BoxDecoration(
+                      color:Colors.black.withOpacity(.10),
+                      borderRadius:BorderRadius.circular(6)),
+                    child:Text('Saini Info Solutions',
+                      style:TextStyle(
+                        fontSize:11,
+                        fontWeight:FontWeight.bold,
+                        color:Colors.black.withOpacity(.38))),
+                  )))
+            : const SizedBox.shrink(),
+        ),
+      ),
+    );
   }
 
   @override
