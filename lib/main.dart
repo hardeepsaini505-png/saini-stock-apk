@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -12,168 +13,508 @@ void main()=>runApp(const CallAPK());
 
 class CallAPK extends StatelessWidget{
   const CallAPK({super.key});
+  @override
   Widget build(BuildContext c)=>MaterialApp(
-    debugShowCheckedModeBanner:false,title:'Saini Service Manager',
+    debugShowCheckedModeBanner:false,
+    title:'CallAPK',
     theme:ThemeData(useMaterial3:true,colorSchemeSeed:Colors.blue),
     home:const CallHomePage());
 }
 
 class Client{
-  String name,mobile,work,place,charges,parts,remark,status;
+  String jobNo,name,mobile,work,place,charges,parts,remark,status;
   DateTime callDate; DateTime? closeDate;
-  Client({required this.name,required this.mobile,required this.work,required this.place,
-    required this.charges,required this.parts,required this.remark,required this.status,
-    required this.callDate,this.closeDate});
-  Map<String,dynamic> toJson()=>{'name':name,'mobile':mobile,'work':work,'place':place,
+  Client({required this.jobNo,required this.name,required this.mobile,required this.work,
+    required this.place,required this.charges,required this.parts,required this.remark,
+    required this.status,required this.callDate,this.closeDate});
+  Map<String,dynamic> toJson()=>{'jobNo':jobNo,'name':name,'mobile':mobile,'work':work,'place':place,
     'charges':charges,'parts':parts,'remark':remark,'status':status,
     'callDate':callDate.toIso8601String(),'closeDate':closeDate?.toIso8601String()};
   factory Client.fromJson(Map<String,dynamic> j)=>Client(
-    name:j['name']??'',mobile:j['mobile']??'',work:j['work']??'',place:j['place']??'',
-    charges:j['charges']??'',parts:j['parts']??'',remark:j['remark']??'',
-    status:j['status']??'Open',callDate:DateTime.tryParse(j['callDate']??'')??DateTime.now(),
+    jobNo:j['jobNo']??'',name:j['name']??'',mobile:j['mobile']??'',work:j['work']??'',
+    place:j['place']??'',charges:j['charges']??'',parts:j['parts']??'',remark:j['remark']??'',
+    status:j['status']??'Open',
+    callDate:DateTime.tryParse(j['callDate']??'')??DateTime.now(),
     closeDate:j['closeDate']==null?null:DateTime.tryParse(j['closeDate']));
+}
+
+class _PartRow{
+  final name=TextEditingController();
+  final qty=TextEditingController(text:'1');
+  final rate=TextEditingController();
+  final total=TextEditingController(text:'0');
+  _PartRow({String n='',String q='1',String r='',String t='0'}){
+    name.text=n; qty.text=q; rate.text=r; total.text=t;
+  }
+  void calc(){
+    final q=double.tryParse(qty.text.trim())??0;
+    final r=double.tryParse(rate.text.trim())??0;
+    total.text=(q*r).toStringAsFixed(2);
+  }
+  void dispose(){name.dispose();qty.dispose();rate.dispose();total.dispose();}
 }
 
 class CallHomePage extends StatefulWidget{
   const CallHomePage({super.key});
+  @override
   State<CallHomePage> createState()=>_CallHomePageState();
 }
 
 class _CallHomePageState extends State<CallHomePage>{
-  static const key='callapk_clients_final';
-  final List<Client> clients=[]; String filter='All'; bool loading=true;
+  static const key='callapk_clients_final_v3';
+  static const settingsKey='callapk_firm_settings_v3';
+  final List<Client> clients=[];
+  String filter='All';
+  bool loading=true;
+  String firmName='Saini Info Solutions',firmAddress='',firmPhone='',jobPrefix='';
+  int nextJobNo=1;
+  bool watermarkEnabled=true;
 
+  // Hidden watermark control: tap the side watermark 7 times, then enter the private PIN.
+  // Change this PIN in this source before sharing the APK.
+  static const String _watermarkPin='7391';
+
+  @override
   void initState(){super.initState();loadData();}
+
   Future<void> loadData() async{
-    final p=await SharedPreferences.getInstance(), raw=p.getString(key);
-    if(raw!=null){try{
-      clients.addAll((jsonDecode(raw) as List).map((e)=>Client.fromJson(Map<String,dynamic>.from(e))));
-    }catch(_){}} if(mounted)setState(()=>loading=false);
+    final sp=await SharedPreferences.getInstance();
+    final settings=sp.getString(settingsKey);
+    if(settings!=null){
+      try{
+        final j=Map<String,dynamic>.from(jsonDecode(settings));
+        firmName=(j['firmName']??'Saini Info Solutions').toString();
+        firmAddress=(j['firmAddress']??'').toString();
+        firmPhone=(j['firmPhone']??'').toString();
+        jobPrefix=(j['jobPrefix']??'').toString();
+        nextJobNo=int.tryParse('${j['nextJobNo']??1}')??1;
+        watermarkEnabled=j['watermarkEnabled']!=false;
+      }catch(_){}
+    }
+    final raw=sp.getString(key);
+    if(raw!=null){
+      try{
+        final list=jsonDecode(raw) as List;
+        int maxNo=0;
+        for(final e in list){
+          final c=Client.fromJson(Map<String,dynamic>.from(e));
+          if(c.jobNo.isEmpty){
+            c.jobNo='$jobPrefix${maxNo+1}';
+          }
+          final match=RegExp(r'(\d+)$').firstMatch(c.jobNo);
+          if(match!=null){
+            final no=int.tryParse(match.group(1)!)??0;
+            if(no>maxNo)maxNo=no;
+          }
+          clients.add(c);
+        }
+        if(nextJobNo<=maxNo)nextJobNo=maxNo+1;
+      }catch(_){}
+    }
+    await saveSettings();
+    if(mounted)setState(()=>loading=false);
   }
+
+  Future<void> saveSettings() async{
+    final sp=await SharedPreferences.getInstance();
+    await sp.setString(settingsKey,jsonEncode({
+      'firmName':firmName,'firmAddress':firmAddress,'firmPhone':firmPhone,
+      'jobPrefix':jobPrefix,'nextJobNo':nextJobNo,'watermarkEnabled':watermarkEnabled
+    }));
+  }
+
   Future<void> saveData() async{
-    final p=await SharedPreferences.getInstance();
-    await p.setString(key,jsonEncode(clients.map((e)=>e.toJson()).toList()));
+    final sp=await SharedPreferences.getInstance();
+    await sp.setString(key,jsonEncode(clients.map((e)=>e.toJson()).toList()));
   }
+
   String dt(DateTime d)=>'${d.day.toString().padLeft(2,'0')}-${d.month.toString().padLeft(2,'0')}-${d.year}';
   String tm(DateTime d)=>'${d.hour.toString().padLeft(2,'0')}:${d.minute.toString().padLeft(2,'0')}';
+
+  String _newJobNo()=>'$jobPrefix$nextJobNo';
 
   Future<void> whatsapp(Client c) async{
     final n=c.mobile.replaceAll(RegExp(r'[^0-9]'),'');
     final phone=n.startsWith('91')?n:'91$n';
     final closed=c.closeDate==null?'Not closed':'${dt(c.closeDate!)} ${tm(c.closeDate!)}';
     final message=[
-      'Saini Info Solutions','',
-      'Dear ${c.name},','',
-      'Aapki service call ki details:','',
-      'Call Date: ${dt(c.callDate)}','Kaam: ${c.work}',
-      'Place: ${c.place}','Charges: Rs. ${c.charges}',
-      'Parts: ${c.parts.isEmpty?'Koi nahi':c.parts}','Status: ${c.status}',
-      'Call Close: $closed','Mobile No.: ${c.mobile}','',
-      'Thank you,','Saini Info Solutions'
+      firmName,
+      if(firmAddress.isNotEmpty)firmAddress,
+      if(firmPhone.isNotEmpty)'Phone: $firmPhone',
+      '',
+      'Job Card No.: ${c.jobNo}',
+      'Dear ${c.name},',
+      '',
+      'Aapki service call ki details:',
+      '',
+      'Call Date: ${dt(c.callDate)}',
+      'Kaam: ${c.work}',
+      'Place: ${c.place}',
+      'Charges: Rs. ${c.charges}',
+      'Parts: ${c.parts.isEmpty?'Koi nahi':c.parts}',
+      'Status: ${c.status}',
+      'Call Close: $closed',
+      'Mobile No.: ${c.mobile}',
+      'Remark: ${c.remark.isEmpty?'Koi nahi':c.remark}',
+      '',
+      'Thank you,',
+      firmName
     ].join('\n');
     final u=Uri.parse('https://wa.me/$phone?text=${Uri.encodeComponent(message)}');
-    if(await canLaunchUrl(u)){await launchUrl(u,mode:LaunchMode.externalApplication);}
+    if(await canLaunchUrl(u))await launchUrl(u,mode:LaunchMode.externalApplication);
   }
 
   Future<void> makePdf(Client c) async{
     final pdf=pw.Document();
-    pdf.addPage(pw.Page(pageFormat:PdfPageFormat.a4,build:(x)=>pw.Padding(
-      padding:const pw.EdgeInsets.all(24),child:pw.Column(
-      crossAxisAlignment:pw.CrossAxisAlignment.start,children:[
-        pw.Text('SAINI INFO SOLUTIONS',style:pw.TextStyle(fontSize:22,fontWeight:pw.FontWeight.bold)),
-        pw.SizedBox(height:8),pw.Text('SERVICE CALL REPORT',style:pw.TextStyle(fontSize:16,fontWeight:pw.FontWeight.bold)),
-        pw.Divider(),pw.SizedBox(height:10),
-        pw.Text('Client Name: ${c.name}'),pw.Text('Mobile No.: ${c.mobile}'),
-        pw.Text('Kaam / Complaint: ${c.work}'),pw.Text('Place / Address: ${c.place}'),
-        pw.Text('Charges: Rs. ${c.charges}'),pw.Text('Parts Details: ${c.parts.isEmpty?'Koi nahi':c.parts}'),
-        pw.Text('Status: ${c.status}'),pw.Text('Call Date: ${dt(c.callDate)}'),
-        pw.Text('Call Close: ${c.closeDate==null?'Not closed':'${dt(c.closeDate!)} ${tm(c.closeDate!)}'}'),
-        pw.Text('Remark: ${c.remark}'),pw.SizedBox(height:30),
-        pw.Text('Thank you - Saini Info Solutions')
-      ]))));
+    pdf.addPage(pw.Page(
+      pageFormat:PdfPageFormat.a4,
+      build:(x)=>pw.Padding(
+        padding:const pw.EdgeInsets.all(24),
+        child:pw.Column(
+          crossAxisAlignment:pw.CrossAxisAlignment.start,
+          children:[
+            pw.Text(firmName,style:pw.TextStyle(fontSize:22,fontWeight:pw.FontWeight.bold)),
+            if(firmAddress.isNotEmpty)pw.Text(firmAddress),
+            if(firmPhone.isNotEmpty)pw.Text('Phone: $firmPhone'),
+            pw.SizedBox(height:8),
+            pw.Text('SERVICE CALL REPORT',style:pw.TextStyle(fontSize:16,fontWeight:pw.FontWeight.bold)),
+            pw.Divider(),
+            pw.SizedBox(height:10),
+            pw.Text('Job Card No.: ${c.jobNo}'),
+            pw.Text('Client Name: ${c.name}'),
+            pw.Text('Mobile No.: ${c.mobile}'),
+            pw.Text('Kaam / Complaint: ${c.work}'),
+            pw.Text('Place / Address: ${c.place}'),
+            pw.Text('Charges: Rs. ${c.charges}'),
+            pw.SizedBox(height:8),
+            pw.Text('Parts Details:'),
+            ..._pdfParts(c.parts),
+            pw.Text('Status: ${c.status}'),
+            pw.Text('Call Date: ${dt(c.callDate)}'),
+            pw.Text('Call Close: ${c.closeDate==null?'Not closed':'${dt(c.closeDate!)} ${tm(c.closeDate!)}'}'),
+            pw.Text('Remark: ${c.remark.isEmpty?'Koi nahi':c.remark}'),
+            pw.SizedBox(height:30),
+            pw.Text('Thank you - $firmName')
+          ])));
     final dir=await getTemporaryDirectory();
-    final safeName=c.name.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'),'_');
-    final f=File('${dir.path}/Saini_Service_${safeName}_${DateTime.now().millisecondsSinceEpoch}.pdf');
+    final safeName=c.jobNo.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'),'_');
+    final f=File('${dir.path}/JobCard_${safeName}_${DateTime.now().millisecondsSinceEpoch}.pdf');
     await f.writeAsBytes(await pdf.save());
-    await Share.shareXFiles([XFile(f.path)],text:'Service Call Report - ${c.name}');
+    await Share.shareXFiles([XFile(f.path)],text:'Job Card ${c.jobNo} - ${c.name}');
   }
 
-  Future<void> add() async{final r=await form();if(r!=null){setState(()=>clients.insert(0,r));await saveData();}}
-  Future<void> edit(Client c) async{await form(existing:c);setState((){});await saveData();}
-
-  Future<Client?> form({Client? existing}) async{
-    final n=TextEditingController(text:existing?.name??''),m=TextEditingController(text:existing?.mobile??''),
-    w=TextEditingController(text:existing?.work??''),p=TextEditingController(text:existing?.place??''),
-    ch=TextEditingController(text:existing?.charges??''),pa=TextEditingController(text:existing?.parts??''),
-    r=TextEditingController(text:existing?.remark??''); String status=existing?.status??'Open';
-    final result=await showDialog<Client>(context:context,builder:(_)=>StatefulBuilder(
-      builder:(c,setD)=>AlertDialog(title:Text(existing==null?'Client Add':'Edit Call'),
-      content:SingleChildScrollView(child:Column(children:[
-        fld(n,'Client Name'),fld(m,'Mobile No.',TextInputType.phone),fld(w,'Kaam / Complaint'),
-        fld(p,'Place / Address'),fld(ch,'Charges',TextInputType.number),fld(pa,'Parts Details'),
-        fld(r,'Remark / Extra Details'),DropdownButtonFormField<String>(value:status,
-        decoration:const InputDecoration(labelText:'Call Status'),items:const[
-          DropdownMenuItem(value:'Open',child:Text('Open')),DropdownMenuItem(value:'Pending',child:Text('Pending')),
-          DropdownMenuItem(value:'Closed',child:Text('Closed'))],
-        onChanged:(v)=>setD(()=>status=v??status))
-      ])),actions:[
-        TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Cancel')),
-        FilledButton(onPressed:(){
-          if(n.text.trim().isEmpty||m.text.trim().isEmpty)return; final now=DateTime.now();
-          if(existing!=null){
-            existing..name=n.text.trim()..mobile=m.text.trim()..work=w.text.trim()..place=p.text.trim()
-            ..charges=ch.text.trim()..parts=pa.text.trim()..remark=r.text.trim()..status=status
-            ..closeDate=status=='Closed'?(existing.closeDate??now):null; Navigator.pop(c,existing);
-          }else{Navigator.pop(c,Client(name:n.text.trim(),mobile:m.text.trim(),work:w.text.trim(),place:p.text.trim(),
-            charges:ch.text.trim(),parts:pa.text.trim(),remark:r.text.trim(),status:status,callDate:now,
-            closeDate:status=='Closed'?now:null));}
-        },child:const Text('Save'))
-      ])));
-    for(final x in[n,m,w,p,ch,pa,r])x.dispose(); return result;
+  List<pw.Widget> _pdfParts(String data){
+    if(data.trim().isEmpty)return [pw.Text('Koi nahi')];
+    return data.split('\n').map((line){
+      final p=line.split('|');
+      if(p.length>=4)return pw.Text('${p[0]} | Qty: ${p[1]} | Rate: Rs. ${p[2]} | Total: Rs. ${p[3]}');
+      return pw.Text(line);
+    }).toList();
   }
 
-  Widget fld(TextEditingController c,String label,[TextInputType t=TextInputType.text])=>Padding(
-    padding:const EdgeInsets.only(bottom:8),child:TextField(controller:c,keyboardType:t,
-    decoration:InputDecoration(labelText:label,border:const OutlineInputBorder())));
+  Future<void> firmSettings() async{
+    final n=TextEditingController(text:firmName);
+    final a=TextEditingController(text:firmAddress);
+    final ph=TextEditingController(text:firmPhone);
+    final pre=TextEditingController(text:jobPrefix);
+    final result=await showDialog<bool>(
+      context:context,
+      builder:(ctx)=>AlertDialog(
+        title:const Text('Firm / Job Card Settings'),
+        content:SingleChildScrollView(child:Column(children:[
+          fld(n,'Firm Name'),
+          fld(a,'Address'),
+          fld(ph,'Phone No.',TextInputType.phone),
+          fld(pre,'Job Card Prefix (GST, GST-, etc.)'),
+          const Align(alignment:Alignment.centerLeft,child:Padding(
+            padding:EdgeInsets.only(top:6),
+            child:Text('Example: Prefix GST- rakhenge to GST-1, GST-2, GST-3...'),
+          )),
+        ])),
+        actions:[
+          TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),
+          FilledButton(onPressed:(){
+            firmName=n.text.trim().isEmpty?'Saini Info Solutions':n.text.trim();
+            firmAddress=a.text.trim();firmPhone=ph.text.trim();jobPrefix=pre.text.trim();
+            Navigator.pop(ctx,true);
+          },child:const Text('Save'))
+        ]));
+    n.dispose();a.dispose();ph.dispose();pre.dispose();
+    if(result==true){await saveSettings();if(mounted)setState((){});}
+  }
 
-  Future<void> deleteClient(Client c) async{
+  Future<void> watermarkControl() async{
+    int taps=0;
+    await showDialog<void>(
+      context:context,
+      barrierDismissible:true,
+      builder:(ctx)=>StatefulBuilder(
+        builder:(ctx,setD)=>GestureDetector(
+          onTap:(){
+            taps++;
+            setD((){});
+            if(taps>=7){
+              Navigator.pop(ctx);
+              _askWatermarkPin();
+            }
+          },
+          child:AlertDialog(
+            title:const Text('Watermark'),
+            content:Text('Is screen par 7 baar tap karein.\nProgress: $taps / 7'),
+            actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Close'))],
+          ))));
+  }
+
+  Future<void> _askWatermarkPin() async{
+    final pin=TextEditingController();
     final ok=await showDialog<bool>(
       context:context,
-      builder:(d)=>AlertDialog(
-        title:const Text('Delete Client?'),
-        content:Text('Kya aap ${c.name} ki client entry delete karna chahte hain?'),
+      builder:(ctx)=>AlertDialog(
+        title:const Text('Private Watermark Control'),
+        content:TextField(controller:pin,obscureText:true,keyboardType:TextInputType.number,
+          decoration:const InputDecoration(labelText:'Private PIN')),
         actions:[
-          TextButton(onPressed:()=>Navigator.pop(d,false),child:const Text('Cancel')),
-          FilledButton(
-            style:FilledButton.styleFrom(backgroundColor:Colors.red),
-            onPressed:()=>Navigator.pop(d,true),
-            child:const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if(ok==true){
+          TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),
+          FilledButton(onPressed:()=>Navigator.pop(ctx,pin.text==_watermarkPin),child:const Text('Verify'))
+        ]));
+    final entered=pin.text; pin.dispose();
+    if(ok==true && entered==_watermarkPin){
+      final newValue=!watermarkEnabled;
+      setState(()=>watermarkEnabled=newValue);
+      await saveSettings();
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content:Text(newValue?'Watermark ON':'Watermark OFF')));
+    }else if(ok==true && mounted){
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Wrong PIN')));
+    }
+  }
+
+  Future<String?> partsDialog(String initial) async{
+    final rows=< _PartRow>[];
+    if(initial.trim().isNotEmpty){
+      for(final line in initial.split('\n')){
+        final p=line.split('|');
+        if(p.length>=4)rows.add(_PartRow(n:p[0],q:p[1],r:p[2],t:p[3]));
+      }
+    }
+    if(rows.isEmpty)rows.add(_PartRow());
+    final result=await showDialog<String>(
+      context:context,
+      builder:(ctx)=>StatefulBuilder(
+        builder:(ctx,setD)=>AlertDialog(
+          title:const Text('Parts Entry'),
+          content:SizedBox(
+            width:double.maxFinite,
+            height:360,
+            child:ListView.builder(
+              itemCount:rows.length,
+              itemBuilder:(_,i){
+                final r=rows[i];
+                return Card(
+                  margin:const EdgeInsets.only(bottom:8),
+                  child:Padding(
+                    padding:const EdgeInsets.all(8),
+                    child:Column(children:[
+                      Row(children:[
+                        Expanded(flex:3,child:TextField(controller:r.name,decoration:const InputDecoration(labelText:'Part'))),
+                        const SizedBox(width:6),
+                        Expanded(child:TextField(controller:r.qty,keyboardType:const TextInputType.numberWithOptions(decimal:true),
+                          decoration:const InputDecoration(labelText:'Qty'),
+                          onChanged:(_){r.calc();setD((){});})),
+                        const SizedBox(width:6),
+                        Expanded(child:TextField(controller:r.rate,keyboardType:const TextInputType.numberWithOptions(decimal:true),
+                          decoration:const InputDecoration(labelText:'Rate'),
+                          onChanged:(_){r.calc();setD((){});})),
+                        const SizedBox(width:6),
+                        Expanded(child:TextField(controller:r.total,readOnly:true,
+                          decoration:const InputDecoration(labelText:'Total'))),
+                      ]),
+                      Align(alignment:Alignment.centerRight,child:IconButton(
+                        tooltip:'Delete Part',icon:const Icon(Icons.delete_outline),
+                        onPressed:rows.length==1?null:(){r.dispose();rows.removeAt(i);setD((){});}))
+                    ])));
+              })),
+          actions:[
+            TextButton(onPressed:(){rows.add(_PartRow());setD((){});},child:const Text('+ Add Part')),
+            TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),
+            FilledButton(onPressed:(){
+              final data=rows.where((r)=>r.name.text.trim().isNotEmpty)
+                .map((r)=>'${r.name.text.trim()}|${r.qty.text.trim()}|${r.rate.text.trim()}|${r.total.text.trim()}')
+                .join('\n');
+              Navigator.pop(ctx,data);
+            },child:const Text('Done'))
+          ])));
+    for(final r in rows)r.dispose();
+    return result;
+  }
+
+  Future<void> add() async{
+    final r=await form();
+    if(r!=null){
+      setState(()=>clients.insert(0,r));
+      nextJobNo++;
+      await saveSettings();
+      await saveData();
+    }
+  }
+
+  Future<void> edit(Client c) async{
+    await form(existing:c);
+    setState((){});
+    await saveData();
+  }
+
+  Future<void> deleteClient(Client c) async{
+    final yes=await showDialog<bool>(context:context,builder:(ctx)=>AlertDialog(
+      title:const Text('Delete Client?'),
+      content:Text('${c.name} ka Job Card ${c.jobNo} delete karna hai?'),
+      actions:[
+        TextButton(onPressed:()=>Navigator.pop(ctx,false),child:const Text('Cancel')),
+        FilledButton(onPressed:()=>Navigator.pop(ctx,true),child:const Text('Delete'))
+      ]));
+    if(yes==true){
       setState(()=>clients.remove(c));
       await saveData();
     }
   }
 
+  Future<Client?> form({Client? existing}) async{
+    final job=TextEditingController(text:existing?.jobNo??_newJobNo());
+    final n=TextEditingController(text:existing?.name??'');
+    final m=TextEditingController(text:existing?.mobile??'');
+    final w=TextEditingController(text:existing?.work??'');
+    final p=TextEditingController(text:existing?.place??'');
+    final ch=TextEditingController(text:existing?.charges??'');
+    final pa=TextEditingController(text:existing?.parts??'');
+    final r=TextEditingController(text:existing?.remark??'');
+    String status=existing?.status??'Open';
+
+    final result=await showDialog<Client>(
+      context:context,
+      builder:(_)=>StatefulBuilder(
+        builder:(c,setD)=>AlertDialog(
+          title:Text(existing==null?'Client Add':'Edit Call'),
+          content:SingleChildScrollView(child:Column(children:[
+            fld(job,'Job Card No. (Manual bhi change kar sakte hain)'),
+            fld(n,'Client Name'),
+            fld(m,'Mobile No.',TextInputType.phone),
+            fld(w,'Kaam / Complaint'),
+            fld(p,'Place / Address'),
+            fld(ch,'Service Charges',TextInputType.number),
+            OutlinedButton.icon(
+              icon:const Icon(Icons.build),
+              label:Text(pa.text.isEmpty?'Add Parts':'Edit Parts'),
+              onPressed:()async{
+                final v=await partsDialog(pa.text);
+                if(v!=null){pa.text=v;setD((){});}
+              }),
+            if(pa.text.isNotEmpty)
+              Align(alignment:Alignment.centerLeft,child:Text(
+                pa.text.split('\n').map((x){
+                  final z=x.split('|');
+                  return z.length>=4?'${z[0]}  Qty:${z[1]}  Rate:${z[2]}  Total:${z[3]}':'$x';
+                }).join('\n'))),
+            const SizedBox(height:8),
+            fld(r,'Remark / Extra Details'),
+            DropdownButtonFormField<String>(
+              value:status,
+              decoration:const InputDecoration(labelText:'Call Status'),
+              items:const[
+                DropdownMenuItem(value:'Open',child:Text('Open')),
+                DropdownMenuItem(value:'Pending',child:Text('Pending')),
+                DropdownMenuItem(value:'Closed',child:Text('Closed'))],
+              onChanged:(v)=>setD(()=>status=v??status))
+          ])),
+          actions:[
+            TextButton(onPressed:()=>Navigator.pop(c),child:const Text('Cancel')),
+            FilledButton(onPressed:(){
+              if(n.text.trim().isEmpty||m.text.trim().isEmpty)return;
+              final now=DateTime.now();
+              if(existing!=null){
+                existing
+                  ..jobNo=job.text.trim().isEmpty?_newJobNo():job.text.trim()
+                  ..name=n.text.trim()..mobile=m.text.trim()..work=w.text.trim()
+                  ..place=p.text.trim()..charges=ch.text.trim()..parts=pa.text.trim()
+                  ..remark=r.text.trim()..status=status
+                  ..closeDate=status=='Closed'?(existing.closeDate??now):null;
+                Navigator.pop(c,existing);
+              }else{
+                Navigator.pop(c,Client(
+                  jobNo:job.text.trim().isEmpty?_newJobNo():job.text.trim(),
+                  name:n.text.trim(),mobile:m.text.trim(),work:w.text.trim(),
+                  place:p.text.trim(),charges:ch.text.trim(),parts:pa.text.trim(),
+                  remark:r.text.trim(),status:status,callDate:now,
+                  closeDate:status=='Closed'?now:null));
+              }
+            },child:const Text('Save'))
+          ])));
+    for(final x in[job,n,m,w,p,ch,pa,r])x.dispose();
+    return result;
+  }
+
+  Widget fld(TextEditingController c,String label,[TextInputType t=TextInputType.text])=>Padding(
+    padding:const EdgeInsets.only(bottom:8),
+    child:TextField(controller:c,keyboardType:t,
+      decoration:InputDecoration(labelText:label,border:const OutlineInputBorder())));
+
+  Widget watermark(){
+    if(!watermarkEnabled)return const SizedBox.shrink();
+    return Positioned(
+      left:-23,
+      top:MediaQuery.of(context).size.height*0.38,
+      child:GestureDetector(
+        onTap:watermarkControl,
+        child:Transform.rotate(
+          angle:-1.5708,
+          child:Container(
+            padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),
+            decoration:BoxDecoration(
+              color:Colors.black.withOpacity(.10),
+              borderRadius:BorderRadius.circular(6)),
+            child:Text('Saini Info Solutions',
+              style:TextStyle(fontSize:11,fontWeight:FontWeight.bold,
+                color:Colors.black.withOpacity(.38))),
+          ))));
+  }
+
+  @override
   Widget build(BuildContext context){
     final list=clients.where((c)=>filter=='All'||c.status==filter).toList();
-    return Scaffold(appBar:AppBar(title:const Text('Saini Service Manager'),actions:[PopupMenuButton<String>(
-      onSelected:(v)=>setState(()=>filter=v),itemBuilder:(_)=>const[
-        PopupMenuItem(value:'All',child:Text('All Calls')),PopupMenuItem(value:'Open',child:Text('Open')),
-        PopupMenuItem(value:'Pending',child:Text('Pending')),PopupMenuItem(value:'Closed',child:Text('Closed'))])]),
-      body:loading?const Center(child:CircularProgressIndicator()):
-      list.isEmpty?const Center(child:Text('Abhi koi call nahi hai')):
-      ListView.builder(padding:const EdgeInsets.all(10),itemCount:list.length,itemBuilder:(_,i){
-        final c=list[i];return Card(child:ListTile(title:Text(c.name,style:const TextStyle(fontWeight:FontWeight.bold)),
-          subtitle:Text('${c.mobile}\n${c.work}\n${c.place}\nStatus: ${c.status}'),isThreeLine:true,
-          onTap:()=>edit(c),trailing:Wrap(children:[
-            IconButton(tooltip:'WhatsApp',icon:const Icon(Icons.message,color:Colors.green),onPressed:()=>whatsapp(c)),
-            IconButton(tooltip:'PDF',icon:const Icon(Icons.picture_as_pdf,color:Colors.red),onPressed:()=>makePdf(c)),
-            IconButton(tooltip:'Delete Client',icon:const Icon(Icons.delete,color:Colors.red),onPressed:()=>deleteClient(c))
-          ])));}),
-      floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.person_add),label:const Text('Client Add')));
+    return Scaffold(
+      appBar:AppBar(
+        title:Text(firmName),
+        actions:[
+          IconButton(tooltip:'Firm Settings',icon:const Icon(Icons.business),onPressed:firmSettings),
+          PopupMenuButton<String>(
+            onSelected:(v)=>setState(()=>filter=v),
+            itemBuilder:(_)=>const[
+              PopupMenuItem(value:'All',child:Text('All Calls')),
+              PopupMenuItem(value:'Open',child:Text('Open')),
+              PopupMenuItem(value:'Pending',child:Text('Pending')),
+              PopupMenuItem(value:'Closed',child:Text('Closed'))])
+        ]),
+      body:Stack(children:[
+        loading?const Center(child:CircularProgressIndicator()):
+        list.isEmpty?const Center(child:Text('Abhi koi call nahi hai')):
+        ListView.builder(
+          padding:const EdgeInsets.all(10),
+          itemCount:list.length,
+          itemBuilder:(_,i){
+            final c=list[i];
+            return Card(child:ListTile(
+              title:Text('${c.jobNo}  •  ${c.name}',style:const TextStyle(fontWeight:FontWeight.bold)),
+              subtitle:Text('${c.mobile}\n${c.work}\n${c.place}\nStatus: ${c.status}',maxLines:4),
+              isThreeLine:true,
+              onTap:()=>edit(c),
+              trailing:Wrap(children:[
+                IconButton(tooltip:'WhatsApp',icon:const Icon(Icons.message,color:Colors.green),onPressed:()=>whatsapp(c)),
+                IconButton(tooltip:'PDF',icon:const Icon(Icons.picture_as_pdf,color:Colors.red),onPressed:()=>makePdf(c)),
+                IconButton(tooltip:'Delete',icon:const Icon(Icons.delete_outline,color:Colors.red),onPressed:()=>deleteClient(c))
+              ]));
+          }),
+        watermark()
+      ]),
+      floatingActionButton:FloatingActionButton.extended(
+        onPressed:add,icon:const Icon(Icons.person_add),label:const Text('Client Add')));
   }
 }
