@@ -191,7 +191,6 @@ class _CallHomePageState extends State<CallHomePage>{
     final charges=double.tryParse(c.charges.replaceAll(',',''))??0;
     final grandTotal=charges+partsTotal;
 
-    final pdf=pw.Document();
     pdf.addPage(pw.Page(
       pageFormat:PdfPageFormat.a4,
       margin:const pw.EdgeInsets.all(28),
