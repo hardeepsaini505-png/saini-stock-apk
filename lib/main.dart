@@ -164,43 +164,156 @@ class _CallHomePageState extends State<CallHomePage>{
     if(await canLaunchUrl(u))await launchUrl(u,mode:LaunchMode.externalApplication);
   }
 
-  Future<void> makePdf(Client c) async{
+  Future<File> _createPdfFile(Client c) async{
+    final pdf=pw.Document();
+    final base=pw.TextStyle(fontSize:10);
+    final bold=pw.TextStyle(fontSize:10,fontWeight:pw.FontWeight.bold);
+    final header=pw.TextStyle(fontSize:22,fontWeight:pw.FontWeight.bold);
+    final accent=pw.TextStyle(fontSize:13,fontWeight:pw.FontWeight.bold);
+
+    final partRows=<pw.TableRow>[];
+    double partsTotal=0;
+    if(c.parts.trim().isNotEmpty){
+      for(final line in c.parts.split('\n')){
+        final p=line.split('|');
+        if(p.length>=4){
+          final t=double.tryParse(p[3])??0;
+          partsTotal+=t;
+          partRows.add(pw.TableRow(children:[
+            pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text(p[0],style:base)),
+            pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text(p[1],style:base)),
+            pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Rs. ${p[2]}',style:base)),
+            pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Rs. ${p[3]}',style:base)),
+          ]));
+        }
+      }
+    }
+    final charges=double.tryParse(c.charges.replaceAll(',',''))??0;
+    final grandTotal=charges+partsTotal;
+
     final pdf=pw.Document();
     pdf.addPage(pw.Page(
       pageFormat:PdfPageFormat.a4,
-      build:(x)=>pw.Padding(
-        padding:const pw.EdgeInsets.all(24),
-        child:pw.Column(
-          crossAxisAlignment:pw.CrossAxisAlignment.start,
-          children:[
-            pw.Text(firmName,style:pw.TextStyle(fontSize:22,fontWeight:pw.FontWeight.bold)),
-            if(firmAddress.isNotEmpty)pw.Text(firmAddress),
-            if(firmPhone.isNotEmpty)pw.Text('Phone: $firmPhone'),
-            pw.SizedBox(height:8),
-            pw.Text('SERVICE CALL REPORT',style:pw.TextStyle(fontSize:16,fontWeight:pw.FontWeight.bold)),
-            pw.Divider(),
-            pw.SizedBox(height:10),
-            pw.Text('Job Card No.: ${c.jobNo}'),
-            pw.Text('Client Name: ${c.name}'),
-            pw.Text('Mobile No.: ${c.mobile}'),
-            pw.Text('Kaam / Complaint: ${c.work}'),
-            pw.Text('Place / Address: ${c.place}'),
-            pw.Text('Charges: Rs. ${c.charges}'),
-            pw.SizedBox(height:8),
-            pw.Text('Parts Details:'),
-            ..._pdfParts(c.parts),
-            pw.Text('Status: ${c.status}'),
-            pw.Text('Call Date: ${dt(c.callDate)}'),
-            pw.Text('Call Close: ${c.closeDate==null?'Not closed':'${dt(c.closeDate!)} ${tm(c.closeDate!)}'}'),
-            pw.Text('Remark: ${c.remark.isEmpty?'Koi nahi':c.remark}'),
-            pw.SizedBox(height:30),
-            pw.Text('Thank you - $firmName')
-          ]))));
-    final dir=await getTemporaryDirectory();
+      margin:const pw.EdgeInsets.all(28),
+      build:(context)=>pw.Column(
+        crossAxisAlignment:pw.CrossAxisAlignment.start,
+        children:[
+          pw.Row(
+            mainAxisAlignment:pw.MainAxisAlignment.spaceBetween,
+            crossAxisAlignment:pw.CrossAxisAlignment.start,
+            children:[
+              pw.Expanded(child:pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.start,children:[
+                pw.Text(firmName,style:header),
+                if(firmAddress.isNotEmpty)pw.Padding(
+                  padding:const pw.EdgeInsets.only(top:4),
+                  child:pw.Text(firmAddress,style:base)),
+                if(firmPhone.isNotEmpty)pw.Text('Phone: $firmPhone',style:base),
+              ])),
+              pw.Container(
+                padding:const pw.EdgeInsets.symmetric(horizontal:12,vertical:8),
+                decoration:pw.BoxDecoration(border:pw.Border.all(width:1)),
+                child:pw.Column(children:[
+                  pw.Text('JOB CARD',style:bold),
+                  pw.SizedBox(height:3),
+                  pw.Text(c.jobNo,style:accent),
+                ]))
+            ]),
+          pw.SizedBox(height:14),
+          pw.Container(
+            width:double.infinity,
+            padding:const pw.EdgeInsets.symmetric(vertical:9,horizontal:12),
+            decoration:pw.BoxDecoration(
+              color:PdfColors.grey300,
+              border:pw.Border.all(width:.5)),
+            child:pw.Text('SERVICE CALL REPORT',style:pw.TextStyle(fontSize:14,fontWeight:pw.FontWeight.bold))),
+          pw.SizedBox(height:12),
+          pw.Table(
+            border:pw.TableBorder.all(color:PdfColors.grey500,width:.5),
+            columnWidths:{0:const pw.FlexColumnWidth(1),1:const pw.FlexColumnWidth(2)},
+            children:[
+              _pdfInfoRow('Client Name',c.name),
+              _pdfInfoRow('Mobile No.',c.mobile),
+              _pdfInfoRow('Kaam / Complaint',c.work),
+              _pdfInfoRow('Place / Address',c.place),
+              _pdfInfoRow('Call Date',dt(c.callDate)),
+              _pdfInfoRow('Status',c.status),
+            ]),
+          pw.SizedBox(height:16),
+          pw.Text('PARTS / MATERIAL',style:accent),
+          pw.SizedBox(height:6),
+          if(partRows.isNotEmpty)pw.Table(
+            border:pw.TableBorder.all(color:PdfColors.grey500,width:.5),
+            columnWidths:{0:const pw.FlexColumnWidth(3),1:const pw.FlexColumnWidth(1),2:const pw.FlexColumnWidth(1.5),3:const pw.FlexColumnWidth(1.7)},
+            children:[
+              pw.TableRow(
+                decoration:const pw.BoxDecoration(color:PdfColors.grey300),
+                children:[
+                  pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Part',style:bold)),
+                  pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Qty',style:bold)),
+                  pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Rate',style:bold)),
+                  pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Amount',style:bold)),
+                ]),
+              ...partRows,
+              pw.TableRow(children:[
+                pw.Container(),pw.Container(),pw.Padding(
+                  padding:const pw.EdgeInsets.all(7),child:pw.Text('Parts Total',style:bold)),
+                pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Rs. ${partsTotal.toStringAsFixed(2)}',style:bold)),
+              ])
+            ])
+          else pw.Text('No parts added.',style:base),
+          pw.SizedBox(height:14),
+          pw.Align(alignment:pw.Alignment.centerRight,child:pw.Container(
+            width:220,
+            padding:const pw.EdgeInsets.all(10),
+            decoration:pw.BoxDecoration(border:pw.Border.all(width:1)),
+            child:pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.end,children:[
+              pw.Text('Service Charges: Rs. ${charges.toStringAsFixed(2)}',style:base),
+              pw.SizedBox(height:4),
+              pw.Text('Parts Total: Rs. ${partsTotal.toStringAsFixed(2)}',style:base),
+              pw.Divider(),
+              pw.Text('Grand Total: Rs. ${grandTotal.toStringAsFixed(2)}',
+                style:pw.TextStyle(fontSize:13,fontWeight:pw.FontWeight.bold)),
+            ]))),
+          pw.SizedBox(height:16),
+          pw.Text('REMARK',style:accent),
+          pw.Container(
+            width:double.infinity,
+            margin:const pw.EdgeInsets.only(top:5),
+            padding:const pw.EdgeInsets.all(10),
+            decoration:pw.BoxDecoration(border:pw.Border.all(width:.5)),
+            child:pw.Text(c.remark.isEmpty?'No remark':c.remark,style:base)),
+          pw.Spacer(),
+          pw.Divider(),
+          pw.Row(mainAxisAlignment:pw.MainAxisAlignment.spaceBetween,children:[
+            pw.Text('Call Close: ${c.closeDate==null?'Not closed':'${dt(c.closeDate!)} ${tm(c.closeDate!)}'}',style:base),
+            pw.Text('Thank you - $firmName',style:bold),
+          ])
+        ]));
+
+    final dir=await getApplicationDocumentsDirectory();
     final safeName=c.jobNo.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'),'_');
-    final f=File('${dir.path}/JobCard_${safeName}_${DateTime.now().millisecondsSinceEpoch}.pdf');
-    await f.writeAsBytes(await pdf.save());
+    final f=File('${dir.path}/JobCard_${safeName}.pdf');
+    await f.writeAsBytes(await pdf.save(),flush:true);
+    return f;
+  }
+
+  pw.TableRow _pdfInfoRow(String label,String value)=>pw.TableRow(children:[
+    pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text(label,style:pw.TextStyle(fontWeight:pw.FontWeight.bold,fontSize:10))),
+    pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text(value.isEmpty?'-':value,style:const pw.TextStyle(fontSize:10))),
+  ]);
+
+  Future<void> makePdf(Client c) async{
+    final f=await _createPdfFile(c);
+    if(!mounted)return;
     await Share.shareXFiles([XFile(f.path)],text:'Job Card ${c.jobNo} - ${c.name}');
+  }
+
+  Future<void> downloadPdf(Client c) async{
+    final f=await _createPdfFile(c);
+    if(!mounted)return;
+    await Share.shareXFiles([XFile(f.path)],text:'PDF ready: Job Card ${c.jobNo}');
+    if(mounted)ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content:Text('PDF ready: ${f.path}')));
   }
 
   List<pw.Widget> _pdfParts(String data){
@@ -212,7 +325,7 @@ class _CallHomePageState extends State<CallHomePage>{
     }).toList();
   }
 
-  Future<void> firmSettings() async{
+Future<void> firmSettings() async{
     final n=TextEditingController(text:firmName);
     final a=TextEditingController(text:firmAddress);
     final ph=TextEditingController(text:firmPhone);
@@ -290,7 +403,7 @@ class _CallHomePageState extends State<CallHomePage>{
   }
 
   Future<String?> partsDialog(String initial) async{
-    final rows=< _PartRow>[];
+    final rows=<_PartRow>[];
     if(initial.trim().isNotEmpty){
       for(final line in initial.split('\n')){
         final p=line.split('|');
@@ -298,6 +411,13 @@ class _CallHomePageState extends State<CallHomePage>{
       }
     }
     if(rows.isEmpty)rows.add(_PartRow());
+
+    void recalc(_PartRow r){
+      final q=double.tryParse(r.qty.text.trim().replaceAll(',',''))??0;
+      final rate=double.tryParse(r.rate.text.trim().replaceAll(',',''))??0;
+      r.total.text=(q*rate).toStringAsFixed(2);
+    }
+
     final result=await showDialog<String>(
       context:context,
       builder:(ctx)=>StatefulBuilder(
@@ -305,39 +425,93 @@ class _CallHomePageState extends State<CallHomePage>{
           title:const Text('Parts Entry'),
           content:SizedBox(
             width:double.maxFinite,
-            height:360,
-            child:ListView.builder(
-              itemCount:rows.length,
-              itemBuilder:(_,i){
-                final r=rows[i];
-                return Card(
-                  margin:const EdgeInsets.only(bottom:8),
-                  child:Padding(
-                    padding:const EdgeInsets.all(8),
-                    child:Column(children:[
-                      Row(children:[
-                        Expanded(flex:3,child:TextField(controller:r.name,decoration:const InputDecoration(labelText:'Part'))),
-                        const SizedBox(width:6),
-                        Expanded(child:TextField(controller:r.qty,keyboardType:const TextInputType.numberWithOptions(decimal:true),
-                          decoration:const InputDecoration(labelText:'Qty'),
-                          onChanged:(_){r.calc();setD((){});})),
-                        const SizedBox(width:6),
-                        Expanded(child:TextField(controller:r.rate,keyboardType:const TextInputType.numberWithOptions(decimal:true),
-                          decoration:const InputDecoration(labelText:'Rate'),
-                          onChanged:(_){r.calc();setD((){});})),
-                        const SizedBox(width:6),
-                        Expanded(child:TextField(controller:r.total,readOnly:true,
-                          decoration:const InputDecoration(labelText:'Total'))),
-                      ]),
-                      Align(alignment:Alignment.centerRight,child:IconButton(
-                        tooltip:'Delete Part',icon:const Icon(Icons.delete_outline),
-                        onPressed:rows.length==1?null:(){r.dispose();rows.removeAt(i);setD((){});}))
-                    ])));
-              })),
+            height:470,
+            child:Column(children:[
+              Container(
+                padding:const EdgeInsets.symmetric(horizontal:8,vertical:6),
+                decoration:BoxDecoration(
+                  color:Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius:BorderRadius.circular(8)),
+                child:const Row(children:[
+                  Expanded(flex:4,child:Text('Part Name',style:TextStyle(fontWeight:FontWeight.bold))),
+                  SizedBox(width:6),
+                  Expanded(flex:2,child:Text('Qty',style:TextStyle(fontWeight:FontWeight.bold))),
+                  SizedBox(width:6),
+                  Expanded(flex:2,child:Text('Rate',style:TextStyle(fontWeight:FontWeight.bold))),
+                  SizedBox(width:3),
+                  Expanded(flex:2,child:Text('Amount',style:TextStyle(fontWeight:FontWeight.bold))),
+                ])),
+              const SizedBox(height:6),
+              Expanded(child:ListView.builder(
+                itemCount:rows.length,
+                itemBuilder:(_,i){
+                  final r=rows[i];
+                  recalc(r);
+                  return Card(
+                    margin:const EdgeInsets.only(bottom:7),
+                    child:Padding(
+                      padding:const EdgeInsets.all(7),
+                      child:Row(children:[
+                        Expanded(flex:4,child:TextField(
+                          controller:r.name,
+                          decoration:const InputDecoration(
+                            labelText:'Part Name',isDense:true,border:OutlineInputBorder()))),
+                        const SizedBox(width:5),
+                        Expanded(flex:2,child:TextField(
+                          controller:r.qty,
+                          keyboardType:const TextInputType.numberWithOptions(decimal:true),
+                          decoration:const InputDecoration(
+                            labelText:'Qty',isDense:true,border:OutlineInputBorder()),
+                          onChanged:(_){recalc(r);setD((){});})),
+                        const SizedBox(width:5),
+                        Expanded(flex:2,child:TextField(
+                          controller:r.rate,
+                          keyboardType:const TextInputType.numberWithOptions(decimal:true),
+                          decoration:const InputDecoration(
+                            labelText:'Rate',isDense:true,border:OutlineInputBorder()),
+                          onChanged:(_){recalc(r);setD((){});})),
+                        const SizedBox(width:5),
+                        Expanded(flex:2,child:TextField(
+                          controller:r.total,
+                          readOnly:true,
+                          decoration:const InputDecoration(
+                            labelText:'Amount',isDense:true,border:OutlineInputBorder()),
+                        )),
+                        IconButton(
+                          tooltip:'Delete Part',
+                          icon:const Icon(Icons.delete_outline,color:Colors.red),
+                          onPressed:rows.length==1?null:(){r.dispose();rows.removeAt(i);setD((){});}),
+                      ])));
+                })),
+              const SizedBox(height:8),
+              Builder(builder:(_){
+                double grand=0;
+                for(final r in rows){
+                  recalc(r);
+                  grand+=double.tryParse(r.total.text.trim())??0;
+                }
+                return Container(
+                  width:double.infinity,
+                  padding:const EdgeInsets.symmetric(horizontal:14,vertical:12),
+                  decoration:BoxDecoration(
+                    border:Border.all(width:1.2,color:Theme.of(context).colorScheme.primary),
+                    borderRadius:BorderRadius.circular(10)),
+                  child:Row(
+                    mainAxisAlignment:MainAxisAlignment.spaceBetween,
+                    children:[
+                      const Text('PARTS GRAND TOTAL',
+                        style:TextStyle(fontWeight:FontWeight.bold,fontSize:15)),
+                      Text('₹ ${grand.toStringAsFixed(2)}',
+                        style:TextStyle(fontWeight:FontWeight.bold,fontSize:18,
+                          color:Theme.of(context).colorScheme.primary)),
+                    ]));
+              }),
+            ])),
           actions:[
             TextButton(onPressed:(){rows.add(_PartRow());setD((){});},child:const Text('+ Add Part')),
             TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),
             FilledButton(onPressed:(){
+              for(final r in rows)recalc(r);
               final data=rows.where((r)=>r.name.text.trim().isNotEmpty)
                 .map((r)=>'${r.name.text.trim()}|${r.qty.text.trim()}|${r.rate.text.trim()}|${r.total.text.trim()}')
                 .join('\n');
@@ -508,7 +682,14 @@ class _CallHomePageState extends State<CallHomePage>{
               onTap:()=>edit(c),
               trailing:Wrap(children:[
                 IconButton(tooltip:'WhatsApp',icon:const Icon(Icons.message,color:Colors.green),onPressed:()=>whatsapp(c)),
-                IconButton(tooltip:'PDF',icon:const Icon(Icons.picture_as_pdf,color:Colors.red),onPressed:()=>makePdf(c)),
+                PopupMenuButton<String>(
+                  tooltip:'PDF Options',
+                  icon:const Icon(Icons.picture_as_pdf,color:Colors.red),
+                  onSelected:(v)=>v=='download'?downloadPdf(c):makePdf(c),
+                  itemBuilder:(_)=>const[
+                    PopupMenuItem(value:'download',child:ListTile(leading:Icon(Icons.download),title:Text('PDF Download'),contentPadding:EdgeInsets.zero)),
+                    PopupMenuItem(value:'share',child:ListTile(leading:Icon(Icons.share),title:Text('PDF Share'),contentPadding:EdgeInsets.zero)),
+                  ]),
                 IconButton(tooltip:'Delete',icon:const Icon(Icons.delete_outline,color:Colors.red),onPressed:()=>deleteClient(c))
               ])));
           }),
