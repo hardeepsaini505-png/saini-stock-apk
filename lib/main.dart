@@ -195,7 +195,7 @@ class _CallHomePageState extends State<CallHomePage>{
             pw.Text('Remark: ${c.remark.isEmpty?'Koi nahi':c.remark}'),
             pw.SizedBox(height:30),
             pw.Text('Thank you - $firmName')
-          ])));
+          ]))));
     final dir=await getTemporaryDirectory();
     final safeName=c.jobNo.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'),'_');
     final f=File('${dir.path}/JobCard_${safeName}_${DateTime.now().millisecondsSinceEpoch}.pdf');
@@ -510,7 +510,7 @@ class _CallHomePageState extends State<CallHomePage>{
                 IconButton(tooltip:'WhatsApp',icon:const Icon(Icons.message,color:Colors.green),onPressed:()=>whatsapp(c)),
                 IconButton(tooltip:'PDF',icon:const Icon(Icons.picture_as_pdf,color:Colors.red),onPressed:()=>makePdf(c)),
                 IconButton(tooltip:'Delete',icon:const Icon(Icons.delete_outline,color:Colors.red),onPressed:()=>deleteClient(c))
-              ]));
+              ])));
           }),
         watermark()
       ]),
