@@ -283,7 +283,7 @@ class _CallHomePageState extends State<CallHomePage>{
               pw.TableRow(children:[
                 pw.Container(),pw.Container(),pw.Padding(
                   padding:const pw.EdgeInsets.all(7),child:pw.Text('Parts Total',style:bold)),
-                pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Rs. ${partsTotal.toStringAsFixed(2)}',style:bold)),
+                pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('-',style:bold)),
               ])
             ])
           else pw.Text('No parts added.',style:base),
@@ -295,7 +295,7 @@ class _CallHomePageState extends State<CallHomePage>{
             child:pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.end,children:[
               pw.Text('Service Charges: Rs. ${charges.toStringAsFixed(2)}',style:base),
               pw.SizedBox(height:4),
-              pw.Text('Parts Total: Rs. ${partsTotal.toStringAsFixed(2)}',style:base),
+              pw.Text('Parts: ${c.parts.isEmpty?'None':'See parts list above'}',style:base),
               pw.Divider(),
               pw.Text('Grand Total: Rs. ${grandTotal.toStringAsFixed(2)}',
                 style:pw.TextStyle(fontSize:13,fontWeight:pw.FontWeight.bold)),
@@ -346,7 +346,7 @@ class _CallHomePageState extends State<CallHomePage>{
     if(data.trim().isEmpty)return [pw.Text('Koi nahi')];
     return data.split('\n').map((line){
       final p=line.split('|');
-      if(p.length>=4)return pw.Text('${p[0]} | Qty: ${p[1]} | Rate: Rs. ${p[2]} | Total: Rs. ${p[3]}');
+      if(p.length>=2)return pw.Text('${p[0]} | Qty: ${p[1]}');
       return pw.Text(line);
     }).toList();
   }
@@ -429,162 +429,180 @@ Future<void> firmSettings() async{
   }
 
   Future<String?> partsDialog(String initial) async{
-    final rows=<_PartRow>[];
+    final rows=<Map<String,TextEditingController>>[];
+
     if(initial.trim().isNotEmpty){
       for(final line in initial.split('\n')){
         final p=line.split('|');
-        if(p.length>=4)rows.add(_PartRow(n:p[0],q:p[1],r:p[2],t:p[3]));
+        if(p.length>=2){
+          rows.add({
+            'name':TextEditingController(text:p[0]),
+            'qty':TextEditingController(text:p[1]),
+          });
+        }
       }
     }
-    if(rows.isEmpty)rows.add(_PartRow());
-
-    void recalc(_PartRow r){
-      final q=double.tryParse(r.qty.text.trim().replaceAll(',',''))??0;
-      final rate=double.tryParse(r.rate.text.trim().replaceAll(',',''))??0;
-      r.total.text=(q*rate).toStringAsFixed(2);
+    if(rows.isEmpty){
+      rows.add({
+        'name':TextEditingController(),
+        'qty':TextEditingController(text:'1'),
+      });
     }
 
     final result=await showDialog<String>(
       context:context,
       barrierDismissible:false,
       builder:(ctx)=>Dialog(
-        insetPadding:const EdgeInsets.symmetric(horizontal:16,vertical:24),
-        shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20)),
+        insetPadding:const EdgeInsets.symmetric(horizontal:18,vertical:28),
+        shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(22)),
         child:ConstrainedBox(
           constraints:BoxConstraints(
-            maxWidth:720,
-            maxHeight:MediaQuery.of(ctx).size.height*0.88),
+            maxWidth:620,
+            maxHeight:MediaQuery.of(ctx).size.height*0.72),
           child:Padding(
             padding:const EdgeInsets.fromLTRB(18,18,18,14),
             child:StatefulBuilder(
-              builder:(ctx,setD){
-                double grand=0;
-                for(final r in rows){recalc(r);grand+=double.tryParse(r.total.text)??0;}
-                return Column(
-                  mainAxisSize:MainAxisSize.min,
-                  children:[
-                    Row(children:[
-                      Container(
-                        padding:const EdgeInsets.all(9),
-                        decoration:BoxDecoration(
-                          color:Theme.of(ctx).colorScheme.primaryContainer,
-                          borderRadius:BorderRadius.circular(12)),
-                        child:Icon(Icons.inventory_2_outlined,
-                          color:Theme.of(ctx).colorScheme.primary)),
-                      const SizedBox(width:12),
-                      const Expanded(child:Column(
-                        crossAxisAlignment:CrossAxisAlignment.start,
-                        children:[
-                          Text('Parts Entry',style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),
-                          SizedBox(height:2),
-                          Text('Part, quantity aur rate enter karein. Amount automatic calculate hoga.',
-                            style:TextStyle(fontSize:12.5,color:Colors.grey))
-                        ])),
-                      IconButton(icon:const Icon(Icons.close),onPressed:()=>Navigator.pop(ctx))
-                    ]),
-                    const SizedBox(height:14),
+              builder:(ctx,setD)=>Column(
+                mainAxisSize:MainAxisSize.min,
+                children:[
+                  Row(children:[
                     Container(
-                      padding:const EdgeInsets.symmetric(horizontal:12,vertical:11),
+                      padding:const EdgeInsets.all(10),
                       decoration:BoxDecoration(
-                        color:Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                        color:Theme.of(ctx).colorScheme.primaryContainer,
                         borderRadius:BorderRadius.circular(12)),
-                      child:const Row(children:[
-                        Expanded(flex:5,child:Text('PART NAME',style:TextStyle(fontWeight:FontWeight.bold,fontSize:12))),
-                        SizedBox(width:8),
-                        SizedBox(width:68,child:Text('QTY',style:TextStyle(fontWeight:FontWeight.bold,fontSize:12))),
-                        SizedBox(width:8),
-                        SizedBox(width:90,child:Text('RATE',style:TextStyle(fontWeight:FontWeight.bold,fontSize:12))),
-                        SizedBox(width:8),
-                        SizedBox(width:105,child:Text('AMOUNT',style:TextStyle(fontWeight:FontWeight.bold,fontSize:12))),
-                        SizedBox(width:42)
+                      child:Icon(Icons.inventory_2_outlined,
+                        color:Theme.of(ctx).colorScheme.primary)),
+                    const SizedBox(width:12),
+                    const Expanded(child:Column(
+                      crossAxisAlignment:CrossAxisAlignment.start,
+                      children:[
+                        Text('Parts Entry',
+                          style:TextStyle(fontSize:22,fontWeight:FontWeight.bold)),
+                        SizedBox(height:3),
+                        Text('Part Name aur Quantity enter karein.',
+                          style:TextStyle(fontSize:13,color:Colors.grey))
                       ])),
-                    const SizedBox(height:8),
-                    Flexible(child:ListView.builder(
+                    IconButton(
+                      tooltip:'Close',
+                      icon:const Icon(Icons.close),
+                      onPressed:()=>Navigator.pop(ctx))
+                  ]),
+                  const SizedBox(height:14),
+
+                  Container(
+                    padding:const EdgeInsets.symmetric(horizontal:14,vertical:12),
+                    decoration:BoxDecoration(
+                      color:Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                      borderRadius:BorderRadius.circular(12)),
+                    child:const Row(children:[
+                      Expanded(
+                        child:Text('PART NAME',
+                          style:TextStyle(fontWeight:FontWeight.bold,fontSize:13))),
+                      SizedBox(width:12),
+                      SizedBox(
+                        width:110,
+                        child:Text('QTY',
+                          style:TextStyle(fontWeight:FontWeight.bold,fontSize:13)))
+                    ])),
+                  const SizedBox(height:8),
+
+                  Flexible(
+                    child:ListView.builder(
                       shrinkWrap:true,
                       itemCount:rows.length,
                       itemBuilder:(_,i){
                         final r=rows[i];
-                        recalc(r);
                         return Container(
                           margin:const EdgeInsets.only(bottom:8),
                           padding:const EdgeInsets.all(8),
                           decoration:BoxDecoration(
-                            border:Border.all(color:Theme.of(ctx).dividerColor),
-                            borderRadius:BorderRadius.circular(12)),
+                            border:Border.all(
+                              color:Theme.of(ctx).colorScheme.outlineVariant),
+                            borderRadius:BorderRadius.circular(14)),
                           child:Row(children:[
-                            Expanded(flex:5,child:TextField(
-                              controller:r.name,
-                              textCapitalization:TextCapitalization.sentences,
-                              decoration:const InputDecoration(
-                                hintText:'Part name',isDense:true,border:OutlineInputBorder()))),
-                            const SizedBox(width:8),
-                            SizedBox(width:68,child:TextField(
-                              controller:r.qty,
-                              textAlign:TextAlign.center,
-                              keyboardType:const TextInputType.numberWithOptions(decimal:true),
-                              decoration:const InputDecoration(
-                                hintText:'1',isDense:true,border:OutlineInputBorder()),
-                              onChanged:(_){recalc(r);setD((){});})),
-                            const SizedBox(width:8),
-                            SizedBox(width:90,child:TextField(
-                              controller:r.rate,
-                              textAlign:TextAlign.right,
-                              keyboardType:const TextInputType.numberWithOptions(decimal:true),
-                              decoration:const InputDecoration(
-                                hintText:'0.00',isDense:true,border:OutlineInputBorder()),
-                              onChanged:(_){recalc(r);setD((){});})),
-                            const SizedBox(width:8),
-                            SizedBox(width:105,child:Container(
-                              height:48,
-                              alignment:Alignment.centerRight,
-                              padding:const EdgeInsets.symmetric(horizontal:12),
-                              decoration:BoxDecoration(
-                                color:Theme.of(ctx).colorScheme.primaryContainer.withOpacity(.45),
-                                border:Border.all(color:Theme.of(ctx).colorScheme.primary.withOpacity(.35)),
-                                borderRadius:BorderRadius.circular(4)),
-                              child:Text('₹ ${r.total.text}',
-                                style:TextStyle(fontWeight:FontWeight.bold,
-                                  color:Theme.of(ctx).colorScheme.primary)))),
-                            SizedBox(width:42,child:IconButton(
+                            Expanded(
+                              child:TextField(
+                                controller:r['name'],
+                                textCapitalization:TextCapitalization.sentences,
+                                decoration:const InputDecoration(
+                                  labelText:'Part Name',
+                                  hintText:'Jaise: Fan Motor, Wire, Switch',
+                                  border:OutlineInputBorder()))),
+                            const SizedBox(width:10),
+                            SizedBox(
+                              width:110,
+                              child:TextField(
+                                controller:r['qty'],
+                                keyboardType:const TextInputType.numberWithOptions(decimal:true),
+                                decoration:const InputDecoration(
+                                  labelText:'Qty',
+                                  border:OutlineInputBorder()))),
+                            const SizedBox(width:4),
+                            IconButton(
                               tooltip:'Delete Part',
                               icon:const Icon(Icons.delete_outline,color:Colors.red),
-                              onPressed:rows.length==1?null:(){r.dispose();rows.removeAt(i);setD((){});})),
+                              onPressed:rows.length==1?null:(){
+                                r['name']!.dispose();
+                                r['qty']!.dispose();
+                                rows.removeAt(i);
+                                setD((){});
+                              })
                           ]));
                       })),
-                    const SizedBox(height:10),
-                    Container(
-                      padding:const EdgeInsets.symmetric(horizontal:16,vertical:13),
-                      decoration:BoxDecoration(
-                        color:Theme.of(ctx).colorScheme.primaryContainer.withOpacity(.55),
-                        borderRadius:BorderRadius.circular(12)),
-                      child:Row(children:[
-                        const Expanded(child:Text('PARTS GRAND TOTAL',
-                          style:TextStyle(fontWeight:FontWeight.bold,fontSize:15))),
-                        Text('₹ ${grand.toStringAsFixed(2)}',
-                          style:TextStyle(fontWeight:FontWeight.bold,fontSize:19,
-                            color:Theme.of(ctx).colorScheme.primary))
-                      ])),
-                    const SizedBox(height:12),
-                    Row(children:[
-                      OutlinedButton.icon(
-                        onPressed:(){rows.add(_PartRow());setD((){});},
-                        icon:const Icon(Icons.add),label:const Text('Add Part')),
-                      const Spacer(),
-                      TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),
+
+                  const SizedBox(height:10),
+                  Container(
+                    padding:const EdgeInsets.symmetric(horizontal:14,vertical:10),
+                    decoration:BoxDecoration(
+                      color:Theme.of(ctx).colorScheme.primaryContainer,
+                      borderRadius:BorderRadius.circular(12)),
+                    child:Row(children:[
+                      const Icon(Icons.inventory_2_outlined),
                       const SizedBox(width:8),
-                      FilledButton.icon(
-                        onPressed:(){
-                          for(final r in rows)recalc(r);
-                          final data=rows.where((r)=>r.name.text.trim().isNotEmpty)
-                            .map((r)=>'${r.name.text.trim()}|${r.qty.text.trim()}|${r.rate.text.trim()}|${r.total.text.trim()}')
-                            .join('\n');
-                          Navigator.pop(ctx,data);
-                        },
-                        icon:const Icon(Icons.check),label:const Text('Save Parts'))
-                    ])
-                  ]);
-              })))));
-    for(final r in rows)r.dispose();
+                      Text('${rows.length} Part${rows.length==1?'':'s'}',
+                        style:const TextStyle(fontWeight:FontWeight.bold)),
+                      const Spacer(),
+                      Text('Rate/Amount is not used',
+                        style:TextStyle(
+                          fontSize:12,
+                          color:Theme.of(ctx).colorScheme.onPrimaryContainer))
+                    ])),
+
+                  const SizedBox(height:12),
+                  Row(children:[
+                    OutlinedButton.icon(
+                      icon:const Icon(Icons.add),
+                      label:const Text('Add Part'),
+                      onPressed:(){
+                        rows.add({
+                          'name':TextEditingController(),
+                          'qty':TextEditingController(text:'1'),
+                        });
+                        setD((){});
+                      }),
+                    const Spacer(),
+                    TextButton(
+                      onPressed:()=>Navigator.pop(ctx),
+                      child:const Text('Cancel')),
+                    const SizedBox(width:8),
+                    FilledButton.icon(
+                      icon:const Icon(Icons.check),
+                      label:const Text('Save Parts'),
+                      onPressed:(){
+                        final data=rows
+                          .where((r)=>r['name']!.text.trim().isNotEmpty)
+                          .map((r)=>'${r['name']!.text.trim()}|${r['qty']!.text.trim()}')
+                          .join('\n');
+                        Navigator.pop(ctx,data);
+                      })
+                  ])
+                ]))))));
+
+    for(final r in rows){
+      r['name']!.dispose();
+      r['qty']!.dispose();
+    }
     return result;
   }
 
@@ -707,21 +725,22 @@ Future<void> firmSettings() async{
         behavior:HitTestBehavior.translucent,
         onTap:watermarkControl,
         child:SizedBox(
-          width:55,
-          height:210,
+          width:72,
+          height:260,
           child:watermarkEnabled
             ? Align(
                 alignment:Alignment.centerLeft,
                 child:Transform.rotate(
                   angle:-1.5708,
                   child:Container(
-                    padding:const EdgeInsets.symmetric(horizontal:10,vertical:5),
+                    padding:const EdgeInsets.symmetric(horizontal:12,vertical:7),
                     decoration:BoxDecoration(
                       color:Colors.black.withOpacity(.10),
                       borderRadius:BorderRadius.circular(6)),
                     child:Text('Saini Info Solutions',
                       style:TextStyle(
-                        fontSize:11,
+                        fontSize:14,
+                        letterSpacing:.4,
                         fontWeight:FontWeight.bold,
                         color:Colors.black.withOpacity(.38))),
                   )))
@@ -790,7 +809,7 @@ Future<void> firmSettings() async{
                 itemCount:list.length,
                 itemBuilder:(_,i){
                   final c=list[i];
-                  final partsPreview=c.parts.isEmpty?'Koi parts nahi':c.parts.split('\n').map((x){final z=x.split('|');return z.length>=4?'${z[0]} (Qty ${z[1]}, Rs.${z[3]})':x;}).join('\n');
+                  final partsPreview=c.parts.isEmpty?'Koi parts nahi':c.parts.split('\n').map((x){final z=x.split('|');return z.length>=2?'${z[0]} (Qty ${z[1]})':x;}).join('\n');
                   return Card(
                     child:ListTile(
                       title:Text('${c.jobNo}  •  ${c.name}',style:const TextStyle(fontWeight:FontWeight.bold)),
