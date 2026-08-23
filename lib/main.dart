@@ -178,7 +178,13 @@ class _CallHomePageState extends State<CallHomePage>{
       'Kaam: ${c.work}',
       'Place: ${c.place}',
       'Charges: Rs. ${c.charges}',
-      'Parts: ${c.parts.isEmpty?'Koi nahi':c.parts}',
+      'Parts:',
+      if(c.parts.trim().isEmpty) '  Koi nahi',
+      if(c.parts.trim().isNotEmpty)
+        ...c.parts.split('\n').asMap().entries.map((e){
+          final p=e.value.split('|');
+          return p.length>=2 ? '  ${e.key+1}. ${p[0].trim()} - Qty: ${p[1].trim()}' : '  ${e.key+1}. ${e.value}';
+        }),
       'Status: ${c.status}',
       'Call Close: $closed',
       'Mobile No.: ${c.mobile}',
@@ -199,24 +205,25 @@ class _CallHomePageState extends State<CallHomePage>{
     final accent=pw.TextStyle(fontSize:13,fontWeight:pw.FontWeight.bold);
 
     final partRows=<pw.TableRow>[];
-    double partsTotal=0;
     if(c.parts.trim().isNotEmpty){
       for(final line in c.parts.split('\n')){
         final p=line.split('|');
-        if(p.length>=4){
-          final t=double.tryParse(p[3])??0;
-          partsTotal+=t;
+        if(p.length>=2){
+          // Current format: Part Name | Qty.
+          // Also accepts old saved records: Part | Qty | Rate | Amount.
           partRows.add(pw.TableRow(children:[
-            pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text(p[0],style:base)),
-            pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text(p[1],style:base)),
-            pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Rs. ${p[2]}',style:base)),
-            pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Rs. ${p[3]}',style:base)),
+            pw.Padding(
+              padding:const pw.EdgeInsets.all(8),
+              child:pw.Text(p[0].trim(),style:base)),
+            pw.Padding(
+              padding:const pw.EdgeInsets.all(8),
+              child:pw.Text(p[1].trim(),style:base)),
           ]));
         }
       }
     }
     final charges=double.tryParse(c.charges.replaceAll(',',''))??0;
-    final grandTotal=charges+partsTotal;
+    final grandTotal=charges;
 
     pdf.addPage(pw.Page(
       pageFormat:PdfPageFormat.a4,
@@ -269,22 +276,22 @@ class _CallHomePageState extends State<CallHomePage>{
           pw.SizedBox(height:6),
           if(partRows.isNotEmpty)pw.Table(
             border:pw.TableBorder.all(color:PdfColors.grey500,width:.5),
-            columnWidths:{0:const pw.FlexColumnWidth(3),1:const pw.FlexColumnWidth(1),2:const pw.FlexColumnWidth(1.5),3:const pw.FlexColumnWidth(1.7)},
+            columnWidths:{
+              0:const pw.FlexColumnWidth(4),
+              1:const pw.FlexColumnWidth(1.2)
+            },
             children:[
               pw.TableRow(
                 decoration:const pw.BoxDecoration(color:PdfColors.grey300),
                 children:[
-                  pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Part',style:bold)),
-                  pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Qty',style:bold)),
-                  pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Rate',style:bold)),
-                  pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('Amount',style:bold)),
+                  pw.Padding(
+                    padding:const pw.EdgeInsets.all(8),
+                    child:pw.Text('Part Name',style:bold)),
+                  pw.Padding(
+                    padding:const pw.EdgeInsets.all(8),
+                    child:pw.Text('Qty',style:bold)),
                 ]),
               ...partRows,
-              pw.TableRow(children:[
-                pw.Container(),pw.Container(),pw.Padding(
-                  padding:const pw.EdgeInsets.all(7),child:pw.Text('Parts Total',style:bold)),
-                pw.Padding(padding:const pw.EdgeInsets.all(7),child:pw.Text('-',style:bold)),
-              ])
             ])
           else pw.Text('No parts added.',style:base),
           pw.SizedBox(height:14),
@@ -295,7 +302,7 @@ class _CallHomePageState extends State<CallHomePage>{
             child:pw.Column(crossAxisAlignment:pw.CrossAxisAlignment.end,children:[
               pw.Text('Service Charges: Rs. ${charges.toStringAsFixed(2)}',style:base),
               pw.SizedBox(height:4),
-              pw.Text('Parts: ${c.parts.isEmpty?'None':'See parts list above'}',style:base),
+              pw.Text('Parts: ${c.parts.isEmpty?'None':'Listed above'}',style:base),
               pw.Divider(),
               pw.Text('Grand Total: Rs. ${grandTotal.toStringAsFixed(2)}',
                 style:pw.TextStyle(fontSize:13,fontWeight:pw.FontWeight.bold)),
