@@ -64,6 +64,8 @@ class _CallHomePageState extends State<CallHomePage>{
   static const key='callapk_clients_final_v3';
   static const settingsKey='callapk_firm_settings_v3';
   final List<Client> clients=[];
+  final TextEditingController searchController=TextEditingController();
+  DateTime? searchDate;
   String filter='All';
   bool loading=true;
   String firmName='Saini Info Solutions',firmAddress='',firmPhone='',jobPrefix='';
@@ -76,6 +78,31 @@ class _CallHomePageState extends State<CallHomePage>{
 
   @override
   void initState(){super.initState();loadData();}
+
+  @override
+  void dispose(){searchController.dispose();super.dispose();}
+
+  bool _matchesSearch(Client c){
+    final q=searchController.text.trim().toLowerCase();
+    final text='${c.name} ${c.mobile} ${c.jobNo} ${c.work} ${c.place}'.toLowerCase();
+    final textMatch=q.isEmpty || text.contains(q);
+    final dateMatch=searchDate==null || (c.callDate.year==searchDate!.year && c.callDate.month==searchDate!.month && c.callDate.day==searchDate!.day);
+    return textMatch && dateMatch;
+  }
+
+  Future<void> pickSearchDate() async{
+    final d=await showDatePicker(
+      context:context,
+      initialDate:searchDate??DateTime.now(),
+      firstDate:DateTime(2000),
+      lastDate:DateTime(2100));
+    if(d!=null)setState(()=>searchDate=d);
+  }
+
+  void clearSearch(){
+    searchController.clear();
+    setState(()=>searchDate=null);
+  }
 
   Future<void> loadData() async{
     final sp=await SharedPreferences.getInstance();
@@ -419,104 +446,144 @@ Future<void> firmSettings() async{
 
     final result=await showDialog<String>(
       context:context,
-      builder:(ctx)=>StatefulBuilder(
-        builder:(ctx,setD)=>AlertDialog(
-          title:const Text('Parts Entry'),
-          content:SizedBox(
-            width:double.maxFinite,
-            height:470,
-            child:Column(children:[
-              Container(
-                padding:const EdgeInsets.symmetric(horizontal:8,vertical:6),
-                decoration:BoxDecoration(
-                  color:Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius:BorderRadius.circular(8)),
-                child:const Row(children:[
-                  Expanded(flex:4,child:Text('Part Name',style:TextStyle(fontWeight:FontWeight.bold))),
-                  SizedBox(width:6),
-                  Expanded(flex:2,child:Text('Qty',style:TextStyle(fontWeight:FontWeight.bold))),
-                  SizedBox(width:6),
-                  Expanded(flex:2,child:Text('Rate',style:TextStyle(fontWeight:FontWeight.bold))),
-                  SizedBox(width:3),
-                  Expanded(flex:2,child:Text('Amount',style:TextStyle(fontWeight:FontWeight.bold))),
-                ])),
-              const SizedBox(height:6),
-              Expanded(child:ListView.builder(
-                itemCount:rows.length,
-                itemBuilder:(_,i){
-                  final r=rows[i];
-                  recalc(r);
-                  return Card(
-                    margin:const EdgeInsets.only(bottom:7),
-                    child:Padding(
-                      padding:const EdgeInsets.all(7),
-                      child:Row(children:[
-                        Expanded(flex:4,child:TextField(
-                          controller:r.name,
-                          decoration:const InputDecoration(
-                            labelText:'Part Name',isDense:true,border:OutlineInputBorder()))),
-                        const SizedBox(width:5),
-                        Expanded(flex:2,child:TextField(
-                          controller:r.qty,
-                          keyboardType:const TextInputType.numberWithOptions(decimal:true),
-                          decoration:const InputDecoration(
-                            labelText:'Qty',isDense:true,border:OutlineInputBorder()),
-                          onChanged:(_){recalc(r);setD((){});})),
-                        const SizedBox(width:5),
-                        Expanded(flex:2,child:TextField(
-                          controller:r.rate,
-                          keyboardType:const TextInputType.numberWithOptions(decimal:true),
-                          decoration:const InputDecoration(
-                            labelText:'Rate',isDense:true,border:OutlineInputBorder()),
-                          onChanged:(_){recalc(r);setD((){});})),
-                        const SizedBox(width:5),
-                        Expanded(flex:2,child:TextField(
-                          controller:r.total,
-                          readOnly:true,
-                          decoration:const InputDecoration(
-                            labelText:'Amount',isDense:true,border:OutlineInputBorder()),
-                        )),
-                        IconButton(
-                          tooltip:'Delete Part',
-                          icon:const Icon(Icons.delete_outline,color:Colors.red),
-                          onPressed:rows.length==1?null:(){r.dispose();rows.removeAt(i);setD((){});}),
-                      ])));
-                })),
-              const SizedBox(height:8),
-              Builder(builder:(_){
+      barrierDismissible:false,
+      builder:(ctx)=>Dialog(
+        insetPadding:const EdgeInsets.symmetric(horizontal:16,vertical:24),
+        shape:RoundedRectangleBorder(borderRadius:BorderRadius.circular(20)),
+        child:ConstrainedBox(
+          constraints:BoxConstraints(
+            maxWidth:720,
+            maxHeight:MediaQuery.of(ctx).size.height*0.88),
+          child:Padding(
+            padding:const EdgeInsets.fromLTRB(18,18,18,14),
+            child:StatefulBuilder(
+              builder:(ctx,setD){
                 double grand=0;
-                for(final r in rows){
-                  recalc(r);
-                  grand+=double.tryParse(r.total.text.trim())??0;
-                }
-                return Container(
-                  width:double.infinity,
-                  padding:const EdgeInsets.symmetric(horizontal:14,vertical:12),
-                  decoration:BoxDecoration(
-                    border:Border.all(width:1.2,color:Theme.of(context).colorScheme.primary),
-                    borderRadius:BorderRadius.circular(10)),
-                  child:Row(
-                    mainAxisAlignment:MainAxisAlignment.spaceBetween,
-                    children:[
-                      const Text('PARTS GRAND TOTAL',
-                        style:TextStyle(fontWeight:FontWeight.bold,fontSize:15)),
-                      Text('₹ ${grand.toStringAsFixed(2)}',
-                        style:TextStyle(fontWeight:FontWeight.bold,fontSize:18,
-                          color:Theme.of(context).colorScheme.primary)),
-                    ]));
-              }),
-            ])),
-          actions:[
-            TextButton(onPressed:(){rows.add(_PartRow());setD((){});},child:const Text('+ Add Part')),
-            TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),
-            FilledButton(onPressed:(){
-              for(final r in rows)recalc(r);
-              final data=rows.where((r)=>r.name.text.trim().isNotEmpty)
-                .map((r)=>'${r.name.text.trim()}|${r.qty.text.trim()}|${r.rate.text.trim()}|${r.total.text.trim()}')
-                .join('\n');
-              Navigator.pop(ctx,data);
-            },child:const Text('Done'))
-          ])));
+                for(final r in rows){recalc(r);grand+=double.tryParse(r.total.text)??0;}
+                return Column(
+                  mainAxisSize:MainAxisSize.min,
+                  children:[
+                    Row(children:[
+                      Container(
+                        padding:const EdgeInsets.all(9),
+                        decoration:BoxDecoration(
+                          color:Theme.of(ctx).colorScheme.primaryContainer,
+                          borderRadius:BorderRadius.circular(12)),
+                        child:Icon(Icons.inventory_2_outlined,
+                          color:Theme.of(ctx).colorScheme.primary)),
+                      const SizedBox(width:12),
+                      const Expanded(child:Column(
+                        crossAxisAlignment:CrossAxisAlignment.start,
+                        children:[
+                          Text('Parts Entry',style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),
+                          SizedBox(height:2),
+                          Text('Part, quantity aur rate enter karein. Amount automatic calculate hoga.',
+                            style:TextStyle(fontSize:12.5,color:Colors.grey))
+                        ])),
+                      IconButton(icon:const Icon(Icons.close),onPressed:()=>Navigator.pop(ctx))
+                    ]),
+                    const SizedBox(height:14),
+                    Container(
+                      padding:const EdgeInsets.symmetric(horizontal:12,vertical:11),
+                      decoration:BoxDecoration(
+                        color:Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                        borderRadius:BorderRadius.circular(12)),
+                      child:const Row(children:[
+                        Expanded(flex:5,child:Text('PART NAME',style:TextStyle(fontWeight:FontWeight.bold,fontSize:12))),
+                        SizedBox(width:8),
+                        SizedBox(width:68,child:Text('QTY',style:TextStyle(fontWeight:FontWeight.bold,fontSize:12))),
+                        SizedBox(width:8),
+                        SizedBox(width:90,child:Text('RATE',style:TextStyle(fontWeight:FontWeight.bold,fontSize:12))),
+                        SizedBox(width:8),
+                        SizedBox(width:105,child:Text('AMOUNT',style:TextStyle(fontWeight:FontWeight.bold,fontSize:12))),
+                        SizedBox(width:42)
+                      ])),
+                    const SizedBox(height:8),
+                    Flexible(child:ListView.builder(
+                      shrinkWrap:true,
+                      itemCount:rows.length,
+                      itemBuilder:(_,i){
+                        final r=rows[i];
+                        recalc(r);
+                        return Container(
+                          margin:const EdgeInsets.only(bottom:8),
+                          padding:const EdgeInsets.all(8),
+                          decoration:BoxDecoration(
+                            border:Border.all(color:Theme.of(ctx).dividerColor),
+                            borderRadius:BorderRadius.circular(12)),
+                          child:Row(children:[
+                            Expanded(flex:5,child:TextField(
+                              controller:r.name,
+                              textCapitalization:TextCapitalization.sentences,
+                              decoration:const InputDecoration(
+                                hintText:'Part name',isDense:true,border:OutlineInputBorder()))),
+                            const SizedBox(width:8),
+                            SizedBox(width:68,child:TextField(
+                              controller:r.qty,
+                              textAlign:TextAlign.center,
+                              keyboardType:const TextInputType.numberWithOptions(decimal:true),
+                              decoration:const InputDecoration(
+                                hintText:'1',isDense:true,border:OutlineInputBorder()),
+                              onChanged:(_){recalc(r);setD((){});})),
+                            const SizedBox(width:8),
+                            SizedBox(width:90,child:TextField(
+                              controller:r.rate,
+                              textAlign:TextAlign.right,
+                              keyboardType:const TextInputType.numberWithOptions(decimal:true),
+                              decoration:const InputDecoration(
+                                hintText:'0.00',isDense:true,border:OutlineInputBorder()),
+                              onChanged:(_){recalc(r);setD((){});})),
+                            const SizedBox(width:8),
+                            SizedBox(width:105,child:Container(
+                              height:48,
+                              alignment:Alignment.centerRight,
+                              padding:const EdgeInsets.symmetric(horizontal:12),
+                              decoration:BoxDecoration(
+                                color:Theme.of(ctx).colorScheme.primaryContainer.withOpacity(.45),
+                                border:Border.all(color:Theme.of(ctx).colorScheme.primary.withOpacity(.35)),
+                                borderRadius:BorderRadius.circular(4)),
+                              child:Text('₹ ${r.total.text}',
+                                style:TextStyle(fontWeight:FontWeight.bold,
+                                  color:Theme.of(ctx).colorScheme.primary)))),
+                            SizedBox(width:42,child:IconButton(
+                              tooltip:'Delete Part',
+                              icon:const Icon(Icons.delete_outline,color:Colors.red),
+                              onPressed:rows.length==1?null:(){r.dispose();rows.removeAt(i);setD((){});})),
+                          ]));
+                      })),
+                    const SizedBox(height:10),
+                    Container(
+                      padding:const EdgeInsets.symmetric(horizontal:16,vertical:13),
+                      decoration:BoxDecoration(
+                        color:Theme.of(ctx).colorScheme.primaryContainer.withOpacity(.55),
+                        borderRadius:BorderRadius.circular(12)),
+                      child:Row(children:[
+                        const Expanded(child:Text('PARTS GRAND TOTAL',
+                          style:TextStyle(fontWeight:FontWeight.bold,fontSize:15))),
+                        Text('₹ ${grand.toStringAsFixed(2)}',
+                          style:TextStyle(fontWeight:FontWeight.bold,fontSize:19,
+                            color:Theme.of(ctx).colorScheme.primary))
+                      ])),
+                    const SizedBox(height:12),
+                    Row(children:[
+                      OutlinedButton.icon(
+                        onPressed:(){rows.add(_PartRow());setD((){});},
+                        icon:const Icon(Icons.add),label:const Text('Add Part')),
+                      const Spacer(),
+                      TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancel')),
+                      const SizedBox(width:8),
+                      FilledButton.icon(
+                        onPressed:(){
+                          for(final r in rows)recalc(r);
+                          final data=rows.where((r)=>r.name.text.trim().isNotEmpty)
+                            .map((r)=>'${r.name.text.trim()}|${r.qty.text.trim()}|${r.rate.text.trim()}|${r.total.text.trim()}')
+                            .join('\n');
+                          Navigator.pop(ctx,data);
+                        },
+                        icon:const Icon(Icons.check),label:const Text('Save Parts'))
+                    ])
+                  ]);
+              })))));
     for(final r in rows)r.dispose();
     return result;
   }
@@ -666,7 +733,9 @@ Future<void> firmSettings() async{
 
   @override
   Widget build(BuildContext context){
-    final list=clients.where((c)=>filter=='All'||c.status==filter).toList();
+    final list=clients.where((c)=>(filter=='All'||c.status==filter)&&_matchesSearch(c)).toList();
+    list.sort((a,b)=>b.callDate.compareTo(a.callDate));
+    final hasSearch=searchController.text.trim().isNotEmpty||searchDate!=null;
     return Scaffold(
       appBar:AppBar(
         title:Text(firmName),
@@ -682,30 +751,71 @@ Future<void> firmSettings() async{
         ]),
       body:Stack(children:[
         loading?const Center(child:CircularProgressIndicator()):
-        list.isEmpty?const Center(child:Text('Abhi koi call nahi hai')):
-        ListView.builder(
-          padding:const EdgeInsets.all(10),
-          itemCount:list.length,
-          itemBuilder:(_,i){
-            final c=list[i];
-            return Card(child:ListTile(
-              title:Text('${c.jobNo}  •  ${c.name}',style:const TextStyle(fontWeight:FontWeight.bold)),
-              subtitle:Text('${c.mobile}\n${c.work}\n${c.place}\nStatus: ${c.status}',maxLines:4),
-              isThreeLine:true,
-              onTap:()=>edit(c),
-              trailing:Wrap(children:[
-                IconButton(tooltip:'WhatsApp',icon:const Icon(Icons.message,color:Colors.green),onPressed:()=>whatsapp(c)),
-                PopupMenuButton<String>(
-                  tooltip:'PDF Options',
-                  icon:const Icon(Icons.picture_as_pdf,color:Colors.red),
-                  onSelected:(v)=>v=='download'?downloadPdf(c):makePdf(c),
-                  itemBuilder:(_)=>const[
-                    PopupMenuItem(value:'download',child:ListTile(leading:Icon(Icons.download),title:Text('PDF Download'),contentPadding:EdgeInsets.zero)),
-                    PopupMenuItem(value:'share',child:ListTile(leading:Icon(Icons.share),title:Text('PDF Share'),contentPadding:EdgeInsets.zero)),
-                  ]),
-                IconButton(tooltip:'Delete',icon:const Icon(Icons.delete_outline,color:Colors.red),onPressed:()=>deleteClient(c))
-              ])));
-          }),
+        Column(children:[
+          Padding(
+            padding:const EdgeInsets.fromLTRB(10,10,10,4),
+            child:TextField(
+              controller:searchController,
+              onChanged:(_)=>setState((){}),
+              decoration:InputDecoration(
+                hintText:'Customer name / mobile / Job Card No. search karein',
+                prefixIcon:const Icon(Icons.search),
+                suffixIcon:searchController.text.isNotEmpty
+                  ?IconButton(icon:const Icon(Icons.clear),onPressed:(){searchController.clear();setState((){});})
+                  :null,
+                border:const OutlineInputBorder(),
+              ),
+            )),
+          Padding(
+            padding:const EdgeInsets.fromLTRB(10,2,10,8),
+            child:Row(children:[
+              Expanded(child:OutlinedButton.icon(
+                icon:const Icon(Icons.calendar_month),
+                label:Text(searchDate==null?'Date se search karein':'Date: ${dt(searchDate!)}'),
+                onPressed:pickSearchDate)),
+              if(hasSearch)const SizedBox(width:8),
+              if(hasSearch)IconButton(tooltip:'Clear Search',icon:const Icon(Icons.filter_alt_off),onPressed:clearSearch),
+            ])),
+          if(hasSearch)
+            Padding(
+              padding:const EdgeInsets.fromLTRB(12,0,12,6),
+              child:Align(alignment:Alignment.centerLeft,child:Text(
+                '${list.length} history record${list.length==1?'':'s'} mila',
+                style:const TextStyle(fontWeight:FontWeight.w600))),
+            ),
+          Expanded(child:list.isEmpty
+            ?Center(child:Text(hasSearch?'Is search ke liye koi history nahi mili':'Abhi koi call nahi hai'))
+            :ListView.builder(
+                padding:const EdgeInsets.all(10),
+                itemCount:list.length,
+                itemBuilder:(_,i){
+                  final c=list[i];
+                  final partsPreview=c.parts.isEmpty?'Koi parts nahi':c.parts.split('\n').map((x){final z=x.split('|');return z.length>=4?'${z[0]} (Qty ${z[1]}, Rs.${z[3]})':x;}).join('\n');
+                  return Card(
+                    child:ListTile(
+                      title:Text('${c.jobNo}  •  ${c.name}',style:const TextStyle(fontWeight:FontWeight.bold)),
+                      subtitle:Padding(
+                        padding:const EdgeInsets.only(top:4),
+                        child:Text(
+                          'Date: ${dt(c.callDate)}\nMobile: ${c.mobile}\nKaam: ${c.work}\nParts: $partsPreview\nCharges: Rs. ${c.charges}\nRemark: ${c.remark.isEmpty?'Koi nahi':c.remark}\nStatus: ${c.status}',
+                          maxLines:8,
+                          overflow:TextOverflow.ellipsis)),
+                      isThreeLine:true,
+                      onTap:()=>edit(c),
+                      trailing:Wrap(children:[
+                        IconButton(tooltip:'WhatsApp',icon:const Icon(Icons.message,color:Colors.green),onPressed:()=>whatsapp(c)),
+                        PopupMenuButton<String>(
+                          tooltip:'PDF Options',
+                          icon:const Icon(Icons.picture_as_pdf,color:Colors.red),
+                          onSelected:(v)=>v=='download'?downloadPdf(c):makePdf(c),
+                          itemBuilder:(_)=>const[
+                            PopupMenuItem(value:'download',child:ListTile(leading:Icon(Icons.download),title:Text('PDF Download'),contentPadding:EdgeInsets.zero)),
+                            PopupMenuItem(value:'share',child:ListTile(leading:Icon(Icons.share),title:Text('PDF Share'),contentPadding:EdgeInsets.zero)),
+                          ]),
+                        IconButton(tooltip:'Delete',icon:const Icon(Icons.delete_outline,color:Colors.red),onPressed:()=>deleteClient(c))
+                      ])));
+                })),
+        ]),
         watermark()
       ]),
       floatingActionButton:FloatingActionButton.extended(
